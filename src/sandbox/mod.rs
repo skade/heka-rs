@@ -294,10 +294,10 @@ impl<'a> LuaSandbox<'a> {
     }
 }
 
-#[link(name = "luasandbox", kind = "static")]
-#[link(name = "cjson", kind = "static")]
-#[link(name = "lpeg", kind = "static")]
-#[link(name = "lua", kind = "static")]
+#[link(name = "luasandbox")]
+#[link(name = "cjson")]
+#[link(name = "lpeg")]
+#[link(name = "lua")]
 extern "C" {
 fn lsb_create(parent: *mut c_void,
               lua_file: *const c_char,

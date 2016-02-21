@@ -33,3 +33,5 @@ git = "https://github.com/rust-lang/uuid"
 
 [dependencies.libc]
 
+[dependencies.getopts]
+

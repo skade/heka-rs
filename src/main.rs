@@ -4,47 +4,49 @@ extern crate protobuf; // depend on rust-protobuf runtime
 extern crate getopts;
 extern crate heka;
 
-use std::old_path::Path;
-use std::old_io::fs::PathExtensions;
-use std::old_io::fs::File;
-use std::old_io::BufReader;
-use std::os;
-use getopts::{optopt,optflag,getopts,OptGroup};
+use getopts::Options;
+
+use std::path::Path;
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::BufReader;
 
 use protobuf::clear::Clear;
 use protobuf::Message;
 use heka::message::pb;
 use heka::{message,sandbox,splitter};
 
-fn print_usage(program: &str, _opts: &[OptGroup]) {
-    println!("{}", getopts::usage(format!("Usage: {} [options] <input_file>", program).as_slice(), _opts))
+fn print_usage(program: &str, opts: &Options) {
+    let brief = format!("Usage: {} [options] <input_file>", program);
+    println!("{}", opts.usage(&brief));
 }
 
 fn main() {
-    let args: Vec<String> = os::args();
+    let args: Vec<String> = std::env::args().collect();
     let program = args[0].clone();
-    let opts = [
-        optopt("m", "match", "set the message matcher filter", "TRUE"),
-        optopt("p", "plugin", "set plugin name (will look for the toml in the same location)", "plugin.lua"),
-        optopt("o", "output", "set output file name", "heka_cat.hpb"),
-        optflag("h", "help", "print this help menu")
-    ];
-    let matches = match getopts(args.tail(), &opts) {
+
+    let mut opts = Options::new();
+    opts.optopt("m", "match", "set the message matcher filter", "TRUE");
+    opts.optopt("p", "plugin", "set plugin name (will look for the toml in the same location)", "plugin.lua");
+    opts.optopt("o", "output", "set output file name", "heka_cat.hpb");
+    opts.optflag("h", "help", "print this help menu");
+
+    let matches = match opts.parse(&args[1..]) {
         Ok(m) => { m }
         Err(f) => {
             println!("{}\n", f.to_string());
-            print_usage(program.as_slice(), &opts);
+            print_usage(program.as_ref(), &opts);
             return;
         }
     };
     if matches.opt_present("h") {
-        print_usage(program.as_slice(), &opts);
+        print_usage(program.as_ref(), &opts);
         return;
     }
     let input = if !matches.free.is_empty() {
         matches.free[0].clone()
     } else {
-        print_usage(program.as_slice(), &opts);
+        print_usage(program.as_ref(), &opts);
         return;
     };
 
@@ -53,17 +55,18 @@ fn main() {
         Some(m) => m,
         None => "TRUE".to_string(),
     };
-    let mm = match message::matcher::Matcher::new(m.as_slice()) {
+    let mm = match message::matcher::Matcher::new(m.as_ref()) {
         Ok(m) => m,
         Err(e) => panic!("invalid match at position({}): {}", e.pos, e.msg),
     };
-    let path : Path = Path::new(input);
-    let mut hps = splitter::HekaProtobufStream::new(File::open(&path), 1024*64+255+3); // max message size + header + seperators
+    let path = Path::new(&input);
+    let mut hps = splitter::HekaProtobufStream::new(File::open(&path).expect("File couldn't be opened."), 1024*64+255+3); // max message size + header + seperators
     let mut lsb = sandbox::LuaSandbox::new("../test/fxa_active_daily_users.lua".as_bytes(), "heka_rs/modules".as_bytes(), 0, 0, 0);
     let preservation = "fxa_active_daily_users.preserve";
-    let r = match Path::new(preservation).stat() {
-        Ok(_) => lsb.init(preservation.as_bytes()),
-        Err(_) => lsb.init("".as_bytes())
+    let r = if Path::new(preservation).exists() {
+        lsb.init(preservation.as_bytes())
+    } else {
+        lsb.init("".as_bytes())
     };
     if r != 0 {
         panic!("sandbox_init failed {} {}", r, lsb.last_error());
@@ -100,9 +103,9 @@ fn main() {
                 }
             }
             Err(e) => {
-                match e.kind {
-                    std::old_io::EndOfFile => { break; }
-                    std::old_io::OtherIoError => { println!("non-fatal read error: {}", e); }
+                match e.kind() {
+                    std::io::ErrorKind::UnexpectedEof => { break; }
+                    std::io::ErrorKind::Other => { println!("non-fatal read error: {}", e); }
                     _ => {
                         println!("read error: {}", e);
                         break;

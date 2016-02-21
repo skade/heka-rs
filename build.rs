@@ -40,5 +40,5 @@ fn main() {
         exit(make_ret);
     }
 
-    println!("cargo:rustc-flags=-L {:?}{:?}lib", &out_dir, MAIN_SEPARATOR);
+    println!("cargo:rustc-flags=-L {}{}lib", &out_dir.clone().into_string().unwrap(), MAIN_SEPARATOR);
 }
