@@ -29,4 +29,5 @@ git = "https://github.com/rust-lang/uuid"
 
 [dependencies.regex]
 
-[dependencies.regex_macros]
+[dependencies.lazy_static]
+

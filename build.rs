@@ -2,21 +2,20 @@
 // Right now this is more or less a literal translation of build.sh.
 // Something needs to be done about protobuf code generation (which itself has
 // a rust dependency).
-#![allow(unstable)]
 
-use std::old_io::Command;
-use std::old_io::process::ProcessExit;
-use std::os;
-use std::old_path::Path;
+use std::process::Command;
+use std::process::exit;
+
+use std::path::Path;
 // original script is *NIX-only
-use std::old_path::posix::SEP;
+use std::path::MAIN_SEPARATOR;
 
 fn main() {
-    let out_dir = os::getenv("OUT_DIR").unwrap();
-    let out_path = Path::new(out_dir.as_slice());
-    let root_path = os::getcwd().unwrap();
+    let out_dir = std::env::var_os("OUT_DIR").unwrap();
+    let out_path = Path::new(&out_dir);
+    let root_path = std::env::current_dir().unwrap();
 
-    os::change_dir(&out_path).unwrap();
+    std::env::set_current_dir(&out_path).unwrap();
 
     let cmake_status = match Command::new("cmake").arg(
         "-DCMAKE_BUILD_TYPE=release").arg(root_path).status() {
@@ -24,14 +23,10 @@ fn main() {
         Err(e) => panic!("failed to execute process: {}", e),
     };
 
-    let cmake_ret = match cmake_status {
-        ProcessExit::ExitStatus(i) => i,
-        ProcessExit::ExitSignal(_) => 0
-    };
+    let cmake_ret = cmake_status.code().unwrap();
 
     if cmake_ret != 0 {
-        os::set_exit_status(cmake_ret);
-        return;
+        exit(cmake_ret);
     }
 
     let make_status = match Command::new("make").status() {
@@ -39,14 +34,11 @@ fn main() {
         Err(e) => panic!("failed to execute process: {}", e),
     };
 
-    let make_ret = match make_status {
-        ProcessExit::ExitStatus(i) => i,
-        ProcessExit::ExitSignal(_) => 0
-    };
+    let make_ret = make_status.code().unwrap();
+
     if make_ret != 0 {
-        os::set_exit_status(make_ret);
-        return;
+        exit(make_ret);
     }
 
-    println!("cargo:rustc-flags=-L {}{}lib", out_dir, SEP);
+    println!("cargo:rustc-flags=-L {:?}{:?}lib", &out_dir, MAIN_SEPARATOR);
 }

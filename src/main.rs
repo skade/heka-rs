@@ -69,8 +69,8 @@ fn main() {
         panic!("sandbox_init failed {} {}", r, lsb.last_error());
     }
 
-    let mut count = 0us;
-    let mut match_count = 0us;
+    let mut count = 0;
+    let mut match_count = 0;
     let mut msg = Some(Box::new(pb::HekaMessage::new()));
     loop {
         match hps.read_next() {

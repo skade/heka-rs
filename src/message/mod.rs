@@ -2,7 +2,7 @@ pub mod pb; // add generated file to the project
 pub mod matcher;
 
 pub fn find_field<'a>(msg: &'a pb::HekaMessage, name: &str, fi: usize) -> Option<&'a pb::Field> {
-    let mut cnt = 0us;
+    let mut cnt = 0;
     for value in msg.get_fields().iter() {
         if name == value.get_name() {
             if cnt == fi {

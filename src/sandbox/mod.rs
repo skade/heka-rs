@@ -9,6 +9,7 @@ use std::str;
 // use std::slice;
 use std::ffi;
 use std::ffi::CString;
+use std::ffi::CStr;
 use std::collections::HashMap;
 use super::message::pb;
 use uuid::Uuid;
@@ -29,37 +30,37 @@ use self::lsb_state::{UNKNOWN,RUNNING,TERMINATED};
 //}
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub enum lsb_state {
   UNKNOWN      = 0,
   RUNNING      = 1,
   TERMINATED   = 2
 }
-impl Copy for lsb_state {}
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub enum lsb_usage_type {
   MEMORY       = 0,
   INSTRUCTION  = 1,
   OUTPUT       = 2,
   MAX
 }
-impl Copy for lsb_usage_type {}
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub enum lsb_usage_stat {
   LIMIT    = 0,
   CURRENT  = 1,
   MAXIMUM  = 2,
   MAX
 }
-impl Copy for lsb_usage_stat {}
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub enum lua_pseudo_index {
   LUA_GLOBALSINDEX = -10002,
   LUA_UPVALUEINDEX = -10003
 }
-impl Copy for lua_pseudo_index {}
 
 struct SandboxConfig {
     config: HashMap<String, Box<Any + 'static>>
@@ -67,10 +68,12 @@ struct SandboxConfig {
 
 pub type InjectMessageFunction<'a> = Box<FnMut(pb::HekaMessage) -> c_int + 'a>;
 pub type InjectPayloadFunction<'a> = Box<FnMut(&'a String, &'a String, &'a String) -> c_int + 'a>;
+#[derive(Clone, Copy)]
 pub enum LSB {}
-impl Copy for LSB {}
+
+#[derive(Clone, Copy)]
 pub enum LUA {}
-impl Copy for LUA {}
+
 pub struct LuaSandbox<'a> {
     msg: std::option::Option<Box<pb::HekaMessage>>,
     lsb: *mut LSB,
@@ -176,7 +179,7 @@ impl<'a> LuaSandbox<'a> {
             let c: *const c_char = lsb_destroy(self.lsb, CString::from_slice(state_file).as_ptr());
             self.lsb = std::ptr::null_mut();
             if c != std::ptr::null() {
-                return str::from_utf8_unchecked(ffi::c_str_to_bytes(&c)).to_string();
+                return str::from_utf8_unchecked(CStr::from_ptr(&c).to_bytes()).to_string();
             } else {
                 return String::new();
             }
@@ -190,7 +193,7 @@ impl<'a> LuaSandbox<'a> {
             }
             let c = lsb_get_error(self.lsb);
             if c != std::ptr::null() {
-                return str::from_utf8_unchecked(ffi::c_str_to_bytes(&c)).to_string();
+                return str::from_utf8_unchecked(CStr::from_ptr(&c).to_bytes()).to_string();
             } else {
                 return String::new();
             }
@@ -240,7 +243,7 @@ impl<'a> LuaSandbox<'a> {
             self.field_iterator = 0;
             if lua_pcall(lua, 0, 1, 0) != 0 {
                 let c = lua_tolstring(lua, -1, std::ptr::null_mut());
-                let err = format!("{}() {}", str::from_utf8(func_name.as_bytes()).unwrap(), str::from_utf8_unchecked(ffi::c_str_to_bytes(&c)).to_string());
+                let err = format!("{}() {}", str::from_utf8(func_name.as_bytes()).unwrap(), str::from_utf8_unchecked(CStr::from_ptr(&c).to_bytes()).to_string());
                 lsb_terminate(self.lsb, CString::from_slice(err.as_bytes()).as_ptr());
                 return (1, self.msg.take().unwrap());
             }
@@ -281,7 +284,7 @@ impl<'a> LuaSandbox<'a> {
             lua_pushnumber(lua, ns as f64);
             if lua_pcall(lua, 1, 0, 0) != 0 {
                 let c = lua_tolstring(lua, -1, std::ptr::null_mut());
-                let err = format!("{}() {}", str::from_utf8(func_name.as_bytes()).unwrap(),  str::from_utf8_unchecked(ffi::c_str_to_bytes(&c)).to_string());
+                let err = format!("{}() {}", str::from_utf8(func_name.as_bytes()).unwrap(),  str::from_utf8_unchecked(CStr::from_ptr(&c).to_bytes()).to_string());
                 lsb_terminate(self.lsb, CString::from_slice(err.as_bytes()).as_ptr());
                 return 1;
             }
@@ -353,7 +356,7 @@ extern fn inject_message(lua: *mut LUA) -> c_int {
 
         let lsb = luserdata as *mut LSB;
         if lsb_output_protobuf(lsb, 1, 0) != 0 {
-            let err = format!("inject_message() could not encode protobuf: {}", str::from_utf8(ffi::c_str_to_bytes(&lsb_get_error(lsb))).unwrap());
+            let err = format!("inject_message() could not encode protobuf: {}", str::from_utf8(CStr::from_ptr(&lsb_get_error(lsb).to_bytes())).unwrap());
             lua_pushlstring(lua, err.as_slice().as_ptr() as *const i8, err.len() as size_t);
             return lua_error(lua);
         }
@@ -390,12 +393,12 @@ extern fn inject_payload(lua: *mut LUA) -> c_int {
         if top > 0 {
             let c = luaL_checklstring(lua, 1, &mut len);
             if len > 0 {
-                typ = str::from_utf8_unchecked(ffi::c_str_to_bytes(&c)).to_string();
+                typ = str::from_utf8_unchecked(CStr::from_ptr(&c).to_bytes()).to_string();
             }
         }
         if top > 1 {
             let c = luaL_checklstring(lua, 2, std::ptr::null_mut());
-            name = str::from_utf8_unchecked(ffi::c_str_to_bytes(&c)).to_string();
+            name = str::from_utf8_unchecked(CStr::from_ptr(&c).to_bytes()).to_string();
         }
         if top > 2 {
             lsb_output(lsb, 3, top, 1);
@@ -429,7 +432,7 @@ fn argcheck(lua: *mut LUA, cond: bool, narg: c_int, msg: &str) {
 
 
 fn find_field<'a>(msg: &'a pb::HekaMessage, name: &str, fi: usize) -> Option<&'a pb::Field> {
-    let mut cnt = 0us;
+    let mut cnt = 0;
     for value in msg.get_fields().iter() {
         if name == value.get_name() {
             if cnt == fi {
@@ -442,7 +445,7 @@ fn find_field<'a>(msg: &'a pb::HekaMessage, name: &str, fi: usize) -> Option<&'a
 }
 
 fn find_field_mut<'a>(msg: &'a mut pb::HekaMessage, name: &str, fi: usize) -> (Option<&'a mut pb::Field>, usize) {
-    let mut cnt = 0us;
+    let mut cnt = 0;
     for value in msg.mut_fields().iter_mut() {
         if name == value.get_name() {
             if cnt == fi {
@@ -543,7 +546,7 @@ extern fn read_message(lua: *mut LUA) -> c_int {
         let msg: &Box<pb::HekaMessage> = (*sandbox).msg.as_ref().unwrap();
         let msg: &pb::HekaMessage = &**msg;
 
-        let field = str::from_utf8(ffi::c_str_to_bytes(&f)).unwrap(); // unlikely to fail
+        let field = str::from_utf8(CStr::from_ptr(&f).to_bytes()).unwrap(); // unlikely to fail
         match field {
             "Type" => {
                 let s = msg.get_field_type();
@@ -650,7 +653,7 @@ extern fn read_config(lua: *mut LUA) -> c_int {
 
         // Get the config key as a Rust string
         let name: *const c_char = luaL_checklstring(lua, 1, std::ptr::null_mut());
-        let name = str::from_utf8(ffi::c_str_to_bytes(&name)).unwrap(); // unlikely to fail
+        let name = str::from_utf8(CStr::from_ptr(&name).to_bytes()).unwrap(); // unlikely to fail
 
         let ref config_map = sandbox.config.config;
         match config_map.get(name) {
@@ -685,7 +688,7 @@ fn update_field(lua: *mut LUA, varg: c_int, field: &mut pb::Field, ai: usize) {
                 unsafe {
                     let c: *const c_char = lua_tolstring(lua, varg, &mut len);
                     // FIXME should use slice::from_raw_buf with len to allow embedded nulls
-                    let v = str::from_utf8_unchecked(ffi::c_str_to_bytes(&c)).to_string();
+                    let v = str::from_utf8_unchecked(CStr::from_ptr(&c).to_bytes()).to_string();
                     if ai == l {
                         a.push(v);
                     } else {
@@ -790,38 +793,38 @@ extern fn write_message(lua: *mut LUA) -> c_int {
         }
         let msg: &mut Box<pb::HekaMessage> = (*sandbox).msg.as_mut().unwrap();
         let msg: &mut pb::HekaMessage = &mut **msg;
-        let field = str::from_utf8_unchecked(ffi::c_str_to_bytes(&name)).to_string();
+        let field = str::from_utf8_unchecked(CStr::from_ptr(&name).to_bytes()).to_string();
 
         match field.as_slice() {
             "Type" => {
                 argcheck(lua, t == 4, 2, "'Type' must be a string");
                 let v: *const c_char = lua_tolstring(lua, 2, std::ptr::null_mut());
-                msg.set_field_type(str::from_utf8_unchecked(ffi::c_str_to_bytes(&v)).to_string());
+                msg.set_field_type(str::from_utf8_unchecked(CStr::from_ptr(&v).to_bytes()).to_string());
             }
             "Logger" => {
                 argcheck(lua, t == 4, 2, "'Logger' must be a string");
                 let v: *const c_char = lua_tolstring(lua, 2, std::ptr::null_mut());
-                msg.set_logger(str::from_utf8_unchecked(ffi::c_str_to_bytes(&v)).to_string());
+                msg.set_logger(str::from_utf8_unchecked(CStr::from_ptr(&v).to_bytes()).to_string());
             }
             "Payload" => {
                 argcheck(lua, t == 4, 2, "'Payload' must be a string");
                 let v: *const c_char = lua_tolstring(lua, 2, std::ptr::null_mut());
-                msg.set_payload(str::from_utf8_unchecked(ffi::c_str_to_bytes(&v)).to_string());
+                msg.set_payload(str::from_utf8_unchecked(CStr::from_ptr(&v).to_bytes()).to_string());
             }
             "EnvVersion" => {
                 argcheck(lua, t == 4, 2, "'EnvVersion' must be a string");
                 let v: *const c_char = lua_tolstring(lua, 2, std::ptr::null_mut());
-                msg.set_env_version(str::from_utf8_unchecked(ffi::c_str_to_bytes(&v)).to_string());
+                msg.set_env_version(str::from_utf8_unchecked(CStr::from_ptr(&v).to_bytes()).to_string());
             }
             "Hostname" => {
                 argcheck(lua, t == 4, 2, "'Hostname' must be a string");
                 let v: *const c_char = lua_tolstring(lua, 2, std::ptr::null_mut());
-                msg.set_hostname(str::from_utf8_unchecked(ffi::c_str_to_bytes(&v)).to_string());
+                msg.set_hostname(str::from_utf8_unchecked(CStr::from_ptr(&v).to_bytes()).to_string());
             }
             "Uuid" => {
                 argcheck(lua, t == 4, 2, "'Uuid' must be a string");
                 let v: *const c_char = lua_tolstring(lua, 2, std::ptr::null_mut());
-                let u = match Uuid::parse_str(str::from_utf8_unchecked(ffi::c_str_to_bytes(&v)).to_string().as_slice()) {
+                let u = match Uuid::parse_str(str::from_utf8_unchecked(CStr::from_ptr(&v).to_bytes()).to_string().as_slice()) {
                     Ok(u) => u,
                     Err(_) => {
                         argcheck(lua, false, 2, "'Uuid' invalid string");
@@ -853,7 +856,7 @@ extern fn write_message(lua: *mut LUA) -> c_int {
                 {
                     Some(name) => {
                         let mut nf:  Option<pb::Field> = None; // todo Brian better way to allow the.mut_fields().push() in None?
-                        let r = str::from_utf8_unchecked(ffi::c_str_to_bytes(&r)).to_string();
+                        let r = str::from_utf8_unchecked(CStr::from_ptr(&r).to_bytes()).to_string();
                         match find_field_mut(msg, name, fi as usize)
                         {
                             (Some(f), _) => {
@@ -1104,7 +1107,7 @@ mod test {
         assert!(0 == sb.init("".as_bytes()));
         let mut m = Some(Box::new(get_test_message()));
 
-        for n in range(0us, 2) { // make sure the iterator is reset between messages
+        for n in range(0, 2) { // make sure the iterator is reset between messages
             let (rc, mm) = sb.process_message(m.take().unwrap());
             m = Some(mm);
             assert!(rc == 0, "{}", sb.last_error());

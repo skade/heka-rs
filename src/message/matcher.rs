@@ -17,13 +17,13 @@ enum Value {
     Nil,
 }
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 enum ExpectNode {
     Conditional,
     LogicalOperator,
 }
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 enum Op {
     Equal,
     NotEqual,
@@ -95,7 +95,7 @@ impl Matcher {
 
         let b = s.as_bytes();
         let l = b.len();
-        let mut pos = 0us;
+        let mut pos = 0;
 
         loop {
             if pos >= l {
@@ -165,7 +165,7 @@ impl Matcher {
 
     fn pop_to_matching_paren(&mut self) -> bool {
          let mut matched = false;
-         let mut count = 0us;
+         let mut count = 0;
          loop {
              match self.stack.pop_front() {
                  Some(n) => {
@@ -229,7 +229,9 @@ impl Matcher {
     }
 
     fn match_op(&mut self, s: &str, pos: &mut usize) -> bool {
-        let re = regex!(r"^\s*(==|!=|>=|>|<=|<)\s*");
+        lazy_static! {
+            static ref re: Regex = Regex::new("^\\s*(==|!=|>=|>|<=|<)\\s*").unwrap();
+        }
         match re.captures(s) {
             Some(c) => {
                 self.node.op = match c.at(1).unwrap() {
@@ -250,7 +252,9 @@ impl Matcher {
     }
 
     fn match_re_op(&mut self, s: &str, pos: &mut usize) -> bool {
-        let re = regex!(r"^\s*(=~|!~)\s*");
+        lazy_static! {
+            static ref re: Regex = Regex::new("^\\s*(=~|!~)\\s*").unwrap();
+        }
         match re.captures(s) {
             Some(c) => {
                 self.node.op = match c.at(1).unwrap() {
@@ -267,7 +271,9 @@ impl Matcher {
     }
 
     fn match_logical_op(&mut self, s: &str, pos: &mut usize) -> bool {
-        let re = regex!(r"^(&&|\|\|)");
+        lazy_static! {
+            static ref re: Regex = Regex::new("^(&&|\\|\\|)").unwrap();
+        }
         match re.captures(s) {
             Some(c) => {
                 self.node.op = match c.at(1).unwrap() {
@@ -284,10 +290,14 @@ impl Matcher {
     }
 
     fn match_string_value(&mut self, s: &str, pos: &mut usize, allow_nil: bool) -> bool {
-        let mut re = regex!(r#"('(?:\\'|[^'])*'|"(?:\\"|[^"])*")"#);
-        if allow_nil {
-            re = regex!(r#"(NIL|'(?:\\'|[^'])*'|"(?:\\"|[^"])*")"#);
+        lazy_static! {
+            static ref re_non_nil: Regex = Regex::new("('(?:\\'|[^'])*'|\"(?:\\\"|[^\"])*\")").unwrap();
         }
+        lazy_static! {
+            static ref re_nil: Regex = Regex::new("(NIL|'(?:\\'|[^'])*'|\"(?:\\\"|[^\"])*)").unwrap();
+        }
+
+        let re = if allow_nil { re_nil } else { re_non_nil };
 
         match re.captures(s) {
             Some(c) => {
@@ -304,13 +314,16 @@ impl Matcher {
     }
 
     fn match_re_value(&mut self, s: &str, pos: &mut usize) -> bool {
-        let re = regex!(r"^/((?:\\/|[^/])*)/");
+        lazy_static! {
+            static ref re : Regex = Regex::new("^/((?:\\/|[^/])*)/").unwrap();
+        }
+
         match re.captures(s) {
             Some(c) => {
                 let (_, e) = c.pos(0).unwrap();
                 *pos += e;
                 self.node.value = match Regex::new(c.at(1).unwrap()) {
-                    Ok(re) => Re(re),
+                    Ok(r) => Re(r),
                     Err(err) => {
                         self.msg = err.msg;
                         return false;
@@ -323,7 +336,10 @@ impl Matcher {
     }
 
     fn match_integer_value(&mut self, s: &str, pos: &mut usize) -> bool {
-        let re = regex!(r"^(\d+)");
+        lazy_static! {
+            static ref re : Regex = Regex::new("^(\\d+)").unwrap();
+        }
+
         match re.captures(s) {
             Some(c) => {
                 self.node.value = Number(std::str::FromStr::from_str(c.at(1).unwrap()).unwrap());
@@ -336,10 +352,14 @@ impl Matcher {
     }
 
     fn match_numeric_value(&mut self, s: &str, pos: &mut usize, allow_nil: bool) -> bool {
-        let mut re = regex!(r"^([+-]?\d+.\d+(?:[eE][+-]?d+)?|\d+)");
-        if allow_nil {
-            re = regex!(r"^(NIL|[+-]?\d+.\d+(?:[eE][+-]?d+)?|\d+)");
+        lazy_static! {
+            static ref re_non_nil : Regex = Regex::new("^([+-]?\\d+.\\d+(?:[eE][+-]?d+)?|\\d+)").unwrap();
         }
+        lazy_static! {
+            static ref re_nil : Regex = Regex::new("^(NIL|[+-]?\\d+.\\d+(?:[eE][+-]?d+)?|\\d+)").unwrap();
+        }
+        let re = if allow_nil { re_nil } else { re_non_nil };
+
         match re.captures(s) {
             Some(c) => {
                 self.node.value = match c.at(1).unwrap() {
@@ -355,7 +375,10 @@ impl Matcher {
     }
 
     fn match_boolean_value(&mut self, s: &str, pos: &mut usize) -> bool {
-        let re = regex!("^(TRUE|FALSE)");
+        lazy_static! {
+            static ref re : Regex = Regex::new("^(TRUE|FALSE)").unwrap();
+        }
+
         match re.captures(s) {
             Some(c) => {
                 self.node.value = match c.at(1).unwrap() {
@@ -372,7 +395,10 @@ impl Matcher {
     }
 
     fn match_string_expression(&mut self, s: &str, pos: &mut usize) -> bool {
-        let re = regex!("^(Type|Logger|Hostname|EnvVersion|Payload|Uuid)");
+        lazy_static! {
+            static ref re : Regex = Regex::new("^(Type|Logger|Hostname|EnvVersion|Payload|Uuid)").unwrap();
+        }
+
         match re.captures(s) {
             Some(c) => {
                 self.node.variable = c.at(1).unwrap().to_string();
@@ -396,7 +422,10 @@ impl Matcher {
     }
 
     fn match_integer_expression(&mut self, s: &str, pos: &mut usize) -> bool {
-        let re = regex!("^(Timestamp|Severity|Pid)");
+        lazy_static! {
+            static ref re : Regex = Regex::new("^(Timestamp|Severity|Pid)").unwrap();
+        }
+
         match re.captures(s) {
             Some(c) => {
                 self.node.variable = c.at(1).unwrap().to_string();
@@ -416,7 +445,9 @@ impl Matcher {
     }
 
     fn match_field_expression(&mut self, s: &str, pos: &mut usize) -> bool {
-        let re = regex!(r"^Fields\[([^]]*?)\](?:\[(\d+)\])?(?:\[(\d+)\])?");
+        lazy_static! {
+            static ref re: Regex = Regex::new("^Fields\\[([^]]*?)\\](?:\\[(\\d+)\\])?(?:\\[(\\d+)\\])?").unwrap();
+        }
         match re.captures(s) {
             Some(c) => {
                 self.node.variable = c.at(1).unwrap().to_string();
@@ -464,7 +495,10 @@ impl Matcher {
     }
 
     fn match_boolean_expression(&mut self, s: &str, pos: &mut usize) -> bool {
-        let re = regex!("^(TRUE|FALSE)");
+        lazy_static! {
+            static ref re : Regex = Regex::new("^(TRUE|FALSE)").unwrap();
+        }
+
         match re.captures(s) {
             Some(c) => {
                 self.node.op = match c.at(1).unwrap() {

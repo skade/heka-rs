@@ -1,6 +1,8 @@
 extern crate rlibc;
 
-use std::old_io::{BufReader, IoResult, IoError, OtherIoError};
+use std::io::{BufReader};
+use std::io;
+use std::io::prelude::*;
 use std::vec::Vec;
 use protobuf::{CodedInputStream, Message};
 use protobuf::clear::Clear;
@@ -15,7 +17,7 @@ static RECORD_SEP: u8 = 0x1e;
 //    // corruption skipped which also means the record could be empty even if
 //    // bytes were read. 'record' will remain valid until the next call to split.
 //    // The bytes read can be non zero even when there is an IoError.
-//    fn read_next<'a>(&'a mut self) -> (usize, IoResult<Option<&'a [u8]>>);
+//    fn read_next<'a>(&'a mut self) -> (usize, io::Result<Option<&'a [u8]>>);
 //
 //    // Reads the remainder of the parse buffer.  This is the
 //    // only way to fetch the last record in a stream that specifies a start of
@@ -24,7 +26,7 @@ static RECORD_SEP: u8 = 0x1e;
 //    fn read_remaining<'a>(&'a mut self) -> &'a [u8];
 //
 //    // tracks the absolute offset in the stream
-//    fn tell(&self) -> IoResult<u64>;
+//    fn tell(&self) -> io::Result<u64>;
 //}
 
 
@@ -38,7 +40,7 @@ pub struct HekaProtobufStream<R> {
     header: pb::Header,
 }
 
-impl<R: Reader> HekaProtobufStream<R> {
+impl<R: Read> HekaProtobufStream<R> {
     pub fn new(reader: R, cap: usize) -> HekaProtobufStream<R> {
         let mut buf = Vec::with_capacity(cap);
         unsafe { buf.set_len(cap); }
@@ -53,8 +55,8 @@ impl<R: Reader> HekaProtobufStream<R> {
         }
     }
 
-    pub fn read_next<'a>(&'a mut self) -> IoResult<Option<&'a [u8]>> {
-        let required = 258us + self.header.get_message_length() as usize;
+    pub fn read_next<'a>(&'a mut self) -> io::Result<Option<&'a [u8]>> {
+        let required = 258 + self.header.get_message_length() as usize;
         match self.read(required) {
             Ok(_) => self.find_record(),
             Err(e) => Err(e)
@@ -72,7 +74,7 @@ impl<R: Reader> HekaProtobufStream<R> {
         None
     }
 
-    pub fn tell(&self) -> IoResult<u64> {
+    pub fn tell(&self) -> io::Result<u64> {
         Ok(self.offset)
     }
 
@@ -89,13 +91,13 @@ impl<R: Reader> HekaProtobufStream<R> {
         false
     }
 
-    fn read(&mut self, required: usize) -> IoResult<usize> {
+    fn read(&mut self, required: usize) -> io::Result<usize> {
         if required > self.cap {
             self.offset += (self.read_pos - self.scan_pos) as u64;
             self.read_pos = 0;
             self.scan_pos = 0;
-            return Err(IoError {
-                    kind: OtherIoError,
+            return Err(io::Error {
+                    kind: io::ErrorKind::Other,
                     desc: "Record exceeds capacity",
                     detail: None
                     });
@@ -126,7 +128,7 @@ impl<R: Reader> HekaProtobufStream<R> {
         }
     }
 
-    fn find_record<'a>(&mut self) -> IoResult<Option<&[u8]>> {
+    fn find_record<'a>(&mut self) -> io::Result<Option<&[u8]>> {
         let pos = self.buf.slice(self.scan_pos, self.read_pos).position_elem(&RECORD_SEP);
         if pos.is_some() {
             let pos = pos.unwrap();

@@ -5,11 +5,11 @@ message Header {
     MD5  = 0;
     SHA1 = 1;
   }
-  required uint32           message_length      = 1; // length in bytes
+  required usize32           message_length      = 1; // length in bytes
 
   optional HmacHashFunction hmac_hash_function  = 3 [default = MD5];
   optional string           hmac_signer         = 4;
-  optional uint32           hmac_key_version    = 5;
+  optional usize32           hmac_key_version    = 5;
   optional bytes            hmac                = 6;
 }
 

@@ -7,6 +7,7 @@
 
 use protobuf::Message as Message_imported_for_functions;
 use protobuf::ProtobufEnum as ProtobufEnum_imported_for_functions;
+use std::any::Any;
 
 #[derive(Clone,Default)]
 pub struct Header {
@@ -44,7 +45,7 @@ impl Header {
         }
     }
 
-    // required uint32 message_length = 1;
+    // required usize32 message_length = 1;
 
     pub fn clear_message_length(&mut self) {
         self.message_length = ::std::option::Option::None;
@@ -118,7 +119,7 @@ impl Header {
         }
     }
 
-    // optional uint32 hmac_key_version = 5;
+    // optional usize32 hmac_key_version = 5;
 
     pub fn clear_hmac_key_version(&mut self) {
         self.hmac_key_version = ::std::option::Option::None;
@@ -190,7 +191,7 @@ impl ::protobuf::Message for Header {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::ProtobufError::WireError("unexpected wire type".to_string()));
                     };
-                    let tmp = try!(is.read_uint32());
+                    let tmp = try!(is.read_usize32());
                     self.message_length = ::std::option::Option::Some(tmp);
                 },
                 3 => {
@@ -211,7 +212,7 @@ impl ::protobuf::Message for Header {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::ProtobufError::WireError("unexpected wire type".to_string()));
                     };
-                    let tmp = try!(is.read_uint32());
+                    let tmp = try!(is.read_usize32());
                     self.hmac_key_version = ::std::option::Option::Some(tmp);
                 },
                 6 => {
@@ -255,7 +256,7 @@ impl ::protobuf::Message for Header {
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream) -> ::protobuf::ProtobufResult<()> {
         if let Some(v) = self.message_length {
-            try!(os.write_uint32(1, v));
+            try!(os.write_usize32(1, v));
         };
         if let Some(v) = self.hmac_hash_function {
             try!(os.write_enum(3, v as i32));
@@ -264,7 +265,7 @@ impl ::protobuf::Message for Header {
             try!(os.write_string(4, v.as_slice()));
         };
         if let Some(v) = self.hmac_key_version {
-            try!(os.write_uint32(5, v));
+            try!(os.write_usize32(5, v));
         };
         if let Some(v) = self.hmac.as_ref() {
             try!(os.write_bytes(6, v.as_slice()));
@@ -291,6 +292,10 @@ impl ::protobuf::Message for Header {
 
     fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
         ::protobuf::MessageStatic::descriptor_static(None::<Self>)
+    }
+
+    fn as_any(&self) -> &Any {
+        self
     }
 }
 
@@ -819,6 +824,10 @@ impl ::protobuf::Message for Field {
 
     fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
         ::protobuf::MessageStatic::descriptor_static(None::<Self>)
+    }
+
+    fn as_any(&self) -> &Any {
+        self
     }
 }
 
@@ -1485,6 +1494,10 @@ impl ::protobuf::Message for HekaMessage {
 
     fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
         ::protobuf::MessageStatic::descriptor_static(None::<Self>)
+    }
+
+    fn as_any(&self) -> &Any {
+        self
     }
 }
 
