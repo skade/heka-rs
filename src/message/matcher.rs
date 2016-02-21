@@ -1,6 +1,7 @@
 use regex::Regex;
 use std;
 use std::collections::{LinkedList};
+use std::error::Error as StdError;
 use message;
 use message::pb;
 use uuid::Uuid;
@@ -117,7 +118,7 @@ impl Matcher {
                 }
                 ' ' => {pos += 1;} // discard spaces
                 '&' | '|' => {
-                    if m.expect as isize != LogicalOperator as isize || !m.match_logical_op(s.slice_from(pos), &mut pos) {
+                    if m.expect as isize != LogicalOperator as isize || !m.match_logical_op(&s[pos..], &mut pos) {
                         return Err(Error{pos: pos, msg: m.msg});
                     }
                     if !m.pop_lower_precedence_ops() {
@@ -127,7 +128,7 @@ impl Matcher {
                     m.expect = Conditional;
                 }
                 _ => {
-                    if m.expect as isize != Conditional as isize || !m.match_condition(s.slice_from(pos), &mut pos) {
+                    if m.expect as isize != Conditional as isize || !m.match_condition(&s[pos..], &mut pos) {
                         return Err(Error{pos: pos, msg: m.msg});
                     }
                     m.output.push_back(m.node);
@@ -230,9 +231,9 @@ impl Matcher {
 
     fn match_op(&mut self, s: &str, pos: &mut usize) -> bool {
         lazy_static! {
-            static ref re: Regex = Regex::new("^\\s*(==|!=|>=|>|<=|<)\\s*").unwrap();
+            static ref RE: Regex = Regex::new("^\\s*(==|!=|>=|>|<=|<)\\s*").unwrap();
         }
-        match re.captures(s) {
+        match RE.captures(s) {
             Some(c) => {
                 self.node.op = match c.at(1).unwrap() {
                     "==" => Equal,
@@ -253,9 +254,9 @@ impl Matcher {
 
     fn match_re_op(&mut self, s: &str, pos: &mut usize) -> bool {
         lazy_static! {
-            static ref re: Regex = Regex::new("^\\s*(=~|!~)\\s*").unwrap();
+            static ref RE: Regex = Regex::new("^\\s*(=~|!~)\\s*").unwrap();
         }
-        match re.captures(s) {
+        match RE.captures(s) {
             Some(c) => {
                 self.node.op = match c.at(1).unwrap() {
                     "=~" => ReEqual,
@@ -272,9 +273,9 @@ impl Matcher {
 
     fn match_logical_op(&mut self, s: &str, pos: &mut usize) -> bool {
         lazy_static! {
-            static ref re: Regex = Regex::new("^(&&|\\|\\|)").unwrap();
+            static ref RE: Regex = Regex::new("^(&&|\\|\\|)").unwrap();
         }
-        match re.captures(s) {
+        match RE.captures(s) {
             Some(c) => {
                 self.node.op = match c.at(1).unwrap() {
                     "&&" => And,
@@ -291,19 +292,23 @@ impl Matcher {
 
     fn match_string_value(&mut self, s: &str, pos: &mut usize, allow_nil: bool) -> bool {
         lazy_static! {
-            static ref re_non_nil: Regex = Regex::new("('(?:\\'|[^'])*'|\"(?:\\\"|[^\"])*\")").unwrap();
+            static ref RE_NON_NIL: Regex = Regex::new("('(?:\\'|[^'])*'|\"(?:\\\"|[^\"])*\")").unwrap();
         }
         lazy_static! {
-            static ref re_nil: Regex = Regex::new("(NIL|'(?:\\'|[^'])*'|\"(?:\\\"|[^\"])*)").unwrap();
+            static ref RE_NIL: Regex = Regex::new("(NIL|'(?:\\'|[^'])*'|\"(?:\\\"|[^\"])*)").unwrap();
         }
 
-        let re = if allow_nil { re_nil } else { re_non_nil };
+        let matches = if allow_nil {
+                          RE_NIL.captures(s)
+                      } else {
+                          RE_NON_NIL.captures(s)
+                      };
 
-        match re.captures(s) {
+        match matches {
             Some(c) => {
                 self.node.value = match c.at(1).unwrap() {
                     "NIL" => Nil,
-                    t => Text(t.slice(1, t.len()-1).to_string())
+                    t => Text(t[1..t.len()-1].to_string())
                 };
                 let (_, e) = c.pos(0).unwrap();
                 *pos += e;
@@ -315,17 +320,17 @@ impl Matcher {
 
     fn match_re_value(&mut self, s: &str, pos: &mut usize) -> bool {
         lazy_static! {
-            static ref re : Regex = Regex::new("^/((?:\\/|[^/])*)/").unwrap();
+            static ref RE: Regex = Regex::new("^/((?:\\/|[^/])*)/").unwrap();
         }
 
-        match re.captures(s) {
+        match RE.captures(s) {
             Some(c) => {
                 let (_, e) = c.pos(0).unwrap();
                 *pos += e;
                 self.node.value = match Regex::new(c.at(1).unwrap()) {
                     Ok(r) => Re(r),
                     Err(err) => {
-                        self.msg = err.msg;
+                        self.msg = String::from(err.description());
                         return false;
                     }
                 };
@@ -337,10 +342,10 @@ impl Matcher {
 
     fn match_integer_value(&mut self, s: &str, pos: &mut usize) -> bool {
         lazy_static! {
-            static ref re : Regex = Regex::new("^(\\d+)").unwrap();
+            static ref RE: Regex = Regex::new("^(\\d+)").unwrap();
         }
 
-        match re.captures(s) {
+        match RE.captures(s) {
             Some(c) => {
                 self.node.value = Number(std::str::FromStr::from_str(c.at(1).unwrap()).unwrap());
                 let (_, e) = c.pos(0).unwrap();
@@ -353,14 +358,19 @@ impl Matcher {
 
     fn match_numeric_value(&mut self, s: &str, pos: &mut usize, allow_nil: bool) -> bool {
         lazy_static! {
-            static ref re_non_nil : Regex = Regex::new("^([+-]?\\d+.\\d+(?:[eE][+-]?d+)?|\\d+)").unwrap();
+            static ref RE_NON_NIL : Regex = Regex::new("^([+-]?\\d+.\\d+(?:[eE][+-]?d+)?|\\d+)").unwrap();
         }
         lazy_static! {
-            static ref re_nil : Regex = Regex::new("^(NIL|[+-]?\\d+.\\d+(?:[eE][+-]?d+)?|\\d+)").unwrap();
+            static ref RE_NIL : Regex = Regex::new("^(NIL|[+-]?\\d+.\\d+(?:[eE][+-]?d+)?|\\d+)").unwrap();
         }
-        let re = if allow_nil { re_nil } else { re_non_nil };
 
-        match re.captures(s) {
+        let matches = if allow_nil {
+                          RE_NIL.captures(s)
+                      } else {
+                          RE_NON_NIL.captures(s)
+                      };
+
+        match matches {
             Some(c) => {
                 self.node.value = match c.at(1).unwrap() {
                     "NIL" => Nil,
@@ -376,10 +386,10 @@ impl Matcher {
 
     fn match_boolean_value(&mut self, s: &str, pos: &mut usize) -> bool {
         lazy_static! {
-            static ref re : Regex = Regex::new("^(TRUE|FALSE)").unwrap();
+            static ref RE : Regex = Regex::new("^(TRUE|FALSE)").unwrap();
         }
 
-        match re.captures(s) {
+        match RE.captures(s) {
             Some(c) => {
                 self.node.value = match c.at(1).unwrap() {
                     "TRUE" => Boolean(true),
@@ -396,22 +406,22 @@ impl Matcher {
 
     fn match_string_expression(&mut self, s: &str, pos: &mut usize) -> bool {
         lazy_static! {
-            static ref re : Regex = Regex::new("^(Type|Logger|Hostname|EnvVersion|Payload|Uuid)").unwrap();
+            static ref RE : Regex = Regex::new("^(Type|Logger|Hostname|EnvVersion|Payload|Uuid)").unwrap();
         }
 
-        match re.captures(s) {
+        match RE.captures(s) {
             Some(c) => {
                 self.node.variable = c.at(1).unwrap().to_string();
                 let (_, e) = c.pos(0).unwrap();
                 *pos += e;
                 let lpos = *pos;
-                let s = s.slice_from(e);
+                let s = &s[e..];
                 if self.match_op(s, pos) {
-                    if !self.match_string_value(s.slice_from(*pos-lpos), pos, false) {
+                    if !self.match_string_value(&s[*pos-lpos..], pos, false) {
                         return false;
                     }
                 } else if self.match_re_op(s, pos) {
-                    if !self.match_re_value(s.slice_from(*pos-lpos), pos) {
+                    if !self.match_re_value(&s[*pos-lpos..], pos) {
                         return false;
                     }
                 }
@@ -423,18 +433,18 @@ impl Matcher {
 
     fn match_integer_expression(&mut self, s: &str, pos: &mut usize) -> bool {
         lazy_static! {
-            static ref re : Regex = Regex::new("^(Timestamp|Severity|Pid)").unwrap();
+            static ref RE : Regex = Regex::new("^(Timestamp|Severity|Pid)").unwrap();
         }
 
-        match re.captures(s) {
+        match RE.captures(s) {
             Some(c) => {
                 self.node.variable = c.at(1).unwrap().to_string();
                 let (_, e) = c.pos(0).unwrap();
                 *pos += e;
                 let lpos = *pos;
-                let s = s.slice_from(e);
+                let s = &s[e..];
                 if self.match_op(s, pos) {
-                    if !self.match_integer_value(s.slice_from(*pos-lpos), pos) {
+                    if !self.match_integer_value(&s[*pos-lpos..], pos) {
                         return false;
                     }
                 }
@@ -446,9 +456,9 @@ impl Matcher {
 
     fn match_field_expression(&mut self, s: &str, pos: &mut usize) -> bool {
         lazy_static! {
-            static ref re: Regex = Regex::new("^Fields\\[([^]]*?)\\](?:\\[(\\d+)\\])?(?:\\[(\\d+)\\])?").unwrap();
+            static ref RE: Regex = Regex::new("^Fields\\[([^]]*?)\\](?:\\[(\\d+)\\])?(?:\\[(\\d+)\\])?").unwrap();
         }
-        match re.captures(s) {
+        match RE.captures(s) {
             Some(c) => {
                 self.node.variable = c.at(1).unwrap().to_string();
                 self.node.is_field = true;
@@ -469,9 +479,9 @@ impl Matcher {
                 let (_, e) = c.pos(0).unwrap();
                 *pos += e;
                 let lpos = *pos;
-                let s = s.slice_from(e);
+                let s = &s[e..];
                 if self.match_op(s, pos) {
-                    let s = s.slice_from(*pos-lpos);
+                    let s = &s[*pos-lpos..];
                     let equality = match self.node.op {
                         Equal | NotEqual => true,
                         _ => false
@@ -484,7 +494,7 @@ impl Matcher {
                         }
                     }
                 } else if self.match_re_op(s, pos) {
-                    if !self.match_re_value(s.slice_from(*pos-lpos), pos) {
+                    if !self.match_re_value(&s[*pos-lpos..], pos) {
                         return false;
                     }
                 }
@@ -496,10 +506,10 @@ impl Matcher {
 
     fn match_boolean_expression(&mut self, s: &str, pos: &mut usize) -> bool {
         lazy_static! {
-            static ref re : Regex = Regex::new("^(TRUE|FALSE)").unwrap();
+            static ref RE : Regex = Regex::new("^(TRUE|FALSE)").unwrap();
         }
 
-        match re.captures(s) {
+        match RE.captures(s) {
             Some(c) => {
                 self.node.op = match c.at(1).unwrap() {
                     "TRUE" => True,
@@ -552,7 +562,7 @@ fn evaluate_node(n: &Box<Node>, m: &pb::HekaMessage) -> bool {
         False =>false,
         _ => {
             if !n.is_field {
-                match n.variable.as_slice() {
+                match n.variable.as_ref() {
                     "Type" => test_string(m.get_field_type(), n),
                     "Logger" => test_string(m.get_logger(), n),
                     "Hostname" => test_string(m.get_hostname(), n),
@@ -564,7 +574,7 @@ fn evaluate_node(n: &Box<Node>, m: &pb::HekaMessage) -> bool {
                     "Uuid" => {
                         match Uuid::from_bytes(m.get_uuid()) {
                             Some(u) => {
-                                test_string(u.to_hyphenated_string().as_slice(), n)
+                                test_string(u.to_hyphenated_string().as_ref(), n)
                             },
                             None => test_string("", n),
                         }
@@ -574,28 +584,28 @@ fn evaluate_node(n: &Box<Node>, m: &pb::HekaMessage) -> bool {
             } else {
                 match n.value { // todo figure out what we are doing with byte array comparison, for now it will always be false
                     Text(ref s) => {
-                        let a = message::get_field_string(m, n.variable.as_slice(), n.fi, n.ai);
+                        let a = message::get_field_string(m, n.variable.as_ref(), n.fi, n.ai);
                         match a {
-                            Some(a) => compare_string(&n.op, a.as_slice(), s.as_slice()),
+                            Some(a) => compare_string(&n.op, a.as_ref(), s.as_ref()),
                             None => false,
                         }
                     },
                     Number(f) => {
-                        let a = message::get_field_number(m, n.variable.as_slice(), n.fi, n.ai);
+                        let a = message::get_field_number(m, n.variable.as_ref(), n.fi, n.ai);
                         match a {
                             Some(a) => compare_number(&n.op, a, f),
                             None => false,
                         }
                     },
                     Re(ref r) => {
-                        let a = message::get_field_string(m, n.variable.as_slice(), n.fi, n.ai);
+                        let a = message::get_field_string(m, n.variable.as_ref(), n.fi, n.ai);
                         match a {
-                            Some(a) => compare_re(&n.op, a.as_slice(), r),
+                            Some(a) => compare_re(&n.op, a.as_ref(), r),
                             None => false,
                         }
                     },
                     Boolean(b) => {
-                        let a = message::get_field_bool(m, n.variable.as_slice(), n.fi, n.ai);
+                        let a = message::get_field_bool(m, n.variable.as_ref(), n.fi, n.ai);
                         match a {
                             Some(a) => {
                                 match n.op {
@@ -608,7 +618,7 @@ fn evaluate_node(n: &Box<Node>, m: &pb::HekaMessage) -> bool {
                         }
                     },
                     Nil => {
-                        let r = match message::find_field(m, n.variable.as_slice(), n.fi)
+                        let r = match message::find_field(m, n.variable.as_ref(), n.fi)
                         {
                             Some(f) => {
                                 match f.get_value_type() {
@@ -671,7 +681,7 @@ fn compare_number(op: &Op, a: f64, b: f64) -> bool {
 fn test_string(a: &str, n: &Box<Node>) -> bool {
     match n.value {
         Text(ref s) => {
-            compare_string(&n.op, a, s.as_slice())
+            compare_string(&n.op, a, s.as_ref())
         },
         Re(ref r) => {
             compare_re(&n.op, a, r)

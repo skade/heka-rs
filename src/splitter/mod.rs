@@ -65,7 +65,7 @@ impl<R: Read> HekaProtobufStream<R> {
 
     pub fn read_remaining<'a>(&'a mut self) -> Option<&'a [u8]> {
         if self.read_pos - self.scan_pos > 0 {
-            let r = Some(self.buf.slice(self.scan_pos, self.read_pos));
+            let r = Some(&self.buf[self.scan_pos..self.read_pos]);
             self.offset += (self.read_pos - self.scan_pos) as u64;
             self.scan_pos = 0;
             self.read_pos = 0;
@@ -82,7 +82,7 @@ impl<R: Read> HekaProtobufStream<R> {
         if self.buf[header_end-1] != 0x1f {
             return false;
         }
-        let mut reader = BufReader::new(self.buf.slice(self.scan_pos + 2, header_end - 1));
+        let mut reader = BufReader::new(&self.buf[self.scan_pos+2..header_end-1]);
         let mut cis = CodedInputStream::new(&mut reader);
         self.header.merge_from(&mut cis); // todo: warning this asserts on corrupt records
         if self.header.is_initialized() {
@@ -96,11 +96,10 @@ impl<R: Read> HekaProtobufStream<R> {
             self.offset += (self.read_pos - self.scan_pos) as u64;
             self.read_pos = 0;
             self.scan_pos = 0;
-            return Err(io::Error {
-                    kind: io::ErrorKind::Other,
-                    desc: "Record exceeds capacity",
-                    detail: None
-                    });
+            return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Record exceeds capacity"
+                    ));
         }
         if self.scan_pos == self.read_pos {
             self.scan_pos = 0;
@@ -110,7 +109,7 @@ impl<R: Read> HekaProtobufStream<R> {
         } else {
             return Ok(0); // buffer already contains enough data
         }
-        match self.reader.read(self.buf.slice_from_mut(self.read_pos)) {
+        match self.reader.read(&mut self.buf[self.read_pos..]) {
             Ok(nread) => {
                 self.read_pos += nread;
                 Ok(nread)
@@ -122,14 +121,14 @@ impl<R: Read> HekaProtobufStream<R> {
     fn shift_buffer(&mut self) {
         unsafe {
             let ptr = self.buf.as_mut_ptr();
-            rlibc::memmove(ptr, self.buf.slice(self.scan_pos, self.read_pos).as_ptr(), self.read_pos - self.scan_pos);
+            rlibc::memmove(ptr, self.buf[self.scan_pos..self.read_pos].as_ptr(), self.read_pos - self.scan_pos);
             self.read_pos -= self.scan_pos;
             self.scan_pos = 0;
         }
     }
 
     fn find_record<'a>(&mut self) -> io::Result<Option<&[u8]>> {
-        let pos = self.buf.slice(self.scan_pos, self.read_pos).position_elem(&RECORD_SEP);
+        let pos = (&self.buf[self.scan_pos..self.read_pos]).iter().position(|&x| x == RECORD_SEP);
         if pos.is_some() {
             let pos = pos.unwrap();
             self.offset += pos as u64;
@@ -153,7 +152,7 @@ impl<R: Read> HekaProtobufStream<R> {
                 self.offset += (message_end - self.scan_pos) as u64;
                 self.scan_pos = message_end;
                 self.header.clear();
-                return Ok(Some(self.buf.slice(header_end, message_end)));
+                return Ok(Some(&self.buf[header_end..message_end]));
             }
         } else {
             self.offset += (self.read_pos - self.scan_pos) as u64;

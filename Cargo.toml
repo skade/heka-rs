@@ -31,3 +31,5 @@ git = "https://github.com/rust-lang/uuid"
 
 [dependencies.lazy_static]
 
+[dependencies.libc]
+

@@ -8,6 +8,7 @@
 use protobuf::Message as Message_imported_for_functions;
 use protobuf::ProtobufEnum as ProtobufEnum_imported_for_functions;
 use std::any::Any;
+use std::io::prelude::*;
 
 #[derive(Clone,Default)]
 pub struct Header {
@@ -114,7 +115,7 @@ impl Header {
 
     pub fn get_hmac_signer<'a>(&'a self) -> &'a str {
         match self.hmac_signer.as_ref() {
-            Some(v) => v.as_slice(),
+            Some(v) => v.as_ref(),
             None => "",
         }
     }
@@ -169,8 +170,8 @@ impl Header {
 
     pub fn get_hmac<'a>(&'a self) -> &'a [u8] {
         match self.hmac.as_ref() {
-            Some(v) => v.as_slice(),
-            None => [].as_slice(),
+            Some(v) => v.as_ref(),
+            None => [].as_ref(),
         }
     }
 }
@@ -191,7 +192,7 @@ impl ::protobuf::Message for Header {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::ProtobufError::WireError("unexpected wire type".to_string()));
                     };
-                    let tmp = try!(is.read_usize32());
+                    let tmp = try!(is.read_uint32());
                     self.message_length = ::std::option::Option::Some(tmp);
                 },
                 3 => {
@@ -212,7 +213,7 @@ impl ::protobuf::Message for Header {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::ProtobufError::WireError("unexpected wire type".to_string()));
                     };
-                    let tmp = try!(is.read_usize32());
+                    let tmp = try!(is.read_uint32());
                     self.hmac_key_version = ::std::option::Option::Some(tmp);
                 },
                 6 => {
@@ -241,13 +242,13 @@ impl ::protobuf::Message for Header {
             my_size += ::protobuf::rt::enum_size(3, *value);
         };
         for value in self.hmac_signer.iter() {
-            my_size += ::protobuf::rt::string_size(4, value.as_slice());
+            my_size += ::protobuf::rt::string_size(4, value.as_ref());
         };
         for value in self.hmac_key_version.iter() {
             my_size += ::protobuf::rt::value_size(5, *value, ::protobuf::wire_format::WireTypeVarint);
         };
         for value in self.hmac.iter() {
-            my_size += ::protobuf::rt::bytes_size(6, value.as_slice());
+            my_size += ::protobuf::rt::bytes_size(6, value.as_ref());
         };
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
@@ -256,19 +257,19 @@ impl ::protobuf::Message for Header {
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream) -> ::protobuf::ProtobufResult<()> {
         if let Some(v) = self.message_length {
-            try!(os.write_usize32(1, v));
+            try!(os.write_uint32(1, v));
         };
         if let Some(v) = self.hmac_hash_function {
             try!(os.write_enum(3, v as i32));
         };
         if let Some(v) = self.hmac_signer.as_ref() {
-            try!(os.write_string(4, v.as_slice()));
+            try!(os.write_string(4, v.as_ref()));
         };
         if let Some(v) = self.hmac_key_version {
-            try!(os.write_usize32(5, v));
+            try!(os.write_uint32(5, v));
         };
         if let Some(v) = self.hmac.as_ref() {
-            try!(os.write_bytes(6, v.as_slice()));
+            try!(os.write_bytes(6, v.as_ref()));
         };
         try!(os.write_unknown_fields(self.get_unknown_fields()));
         ::std::result::Result::Ok(())
@@ -484,7 +485,7 @@ impl Field {
 
     pub fn get_name<'a>(&'a self) -> &'a str {
         match self.name.as_ref() {
-            Some(v) => v.as_slice(),
+            Some(v) => v.as_ref(),
             None => "",
         }
     }
@@ -542,7 +543,7 @@ impl Field {
 
     pub fn get_representation<'a>(&'a self) -> &'a str {
         match self.representation.as_ref() {
-            Some(v) => v.as_slice(),
+            Some(v) => v.as_ref(),
             None => "",
         }
     }
@@ -569,7 +570,7 @@ impl Field {
     }
 
     pub fn get_value_string<'a>(&'a self) -> &'a [::std::string::String] {
-        self.value_string.as_slice()
+        self.value_string.as_ref()
     }
 
     // repeated bytes value_bytes = 5;
@@ -594,7 +595,7 @@ impl Field {
     }
 
     pub fn get_value_bytes<'a>(&'a self) -> &'a [::std::vec::Vec<u8>] {
-        self.value_bytes.as_slice()
+        self.value_bytes.as_ref()
     }
 
     // repeated int64 value_integer = 6;
@@ -619,7 +620,7 @@ impl Field {
     }
 
     pub fn get_value_integer<'a>(&'a self) -> &'a [i64] {
-        self.value_integer.as_slice()
+        self.value_integer.as_ref()
     }
 
     // repeated double value_double = 7;
@@ -644,7 +645,7 @@ impl Field {
     }
 
     pub fn get_value_double<'a>(&'a self) -> &'a [f64] {
-        self.value_double.as_slice()
+        self.value_double.as_ref()
     }
 
     // repeated bool value_bool = 8;
@@ -669,7 +670,7 @@ impl Field {
     }
 
     pub fn get_value_bool<'a>(&'a self) -> &'a [bool] {
-        self.value_bool.as_slice()
+        self.value_bool.as_ref()
     }
 }
 
@@ -734,22 +735,22 @@ impl ::protobuf::Message for Field {
     fn compute_size(&self) -> u32 {
         let mut my_size = 0;
         for value in self.name.iter() {
-            my_size += ::protobuf::rt::string_size(1, value.as_slice());
+            my_size += ::protobuf::rt::string_size(1, value.as_ref());
         };
         for value in self.value_type.iter() {
             my_size += ::protobuf::rt::enum_size(2, *value);
         };
         for value in self.representation.iter() {
-            my_size += ::protobuf::rt::string_size(3, value.as_slice());
+            my_size += ::protobuf::rt::string_size(3, value.as_ref());
         };
         for value in self.value_string.iter() {
-            my_size += ::protobuf::rt::string_size(4, value.as_slice());
+            my_size += ::protobuf::rt::string_size(4, value.as_ref());
         };
         for value in self.value_bytes.iter() {
-            my_size += ::protobuf::rt::bytes_size(5, value.as_slice());
+            my_size += ::protobuf::rt::bytes_size(5, value.as_ref());
         };
         if !self.value_integer.is_empty() {
-            my_size += ::protobuf::rt::vec_packed_varint_size(6, self.value_integer.as_slice());
+            my_size += ::protobuf::rt::vec_packed_varint_size(6, self.value_integer.as_ref());
         };
         if !self.value_double.is_empty() {
             my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(self.value_double.len() as u32) + (self.value_double.len() * 8) as u32;
@@ -764,24 +765,24 @@ impl ::protobuf::Message for Field {
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream) -> ::protobuf::ProtobufResult<()> {
         if let Some(v) = self.name.as_ref() {
-            try!(os.write_string(1, v.as_slice()));
+            try!(os.write_string(1, v.as_ref()));
         };
         if let Some(v) = self.value_type {
             try!(os.write_enum(2, v as i32));
         };
         if let Some(v) = self.representation.as_ref() {
-            try!(os.write_string(3, v.as_slice()));
+            try!(os.write_string(3, v.as_ref()));
         };
         for v in self.value_string.iter() {
-            try!(os.write_string(4, v.as_slice()));
+            try!(os.write_string(4, v.as_ref()));
         };
         for v in self.value_bytes.iter() {
-            try!(os.write_bytes(5, v.as_slice()));
+            try!(os.write_bytes(5, v.as_ref()));
         };
         if !self.value_integer.is_empty() {
             try!(os.write_tag(6, ::protobuf::wire_format::WireTypeLengthDelimited));
             // TODO: Data size is computed again, it should be cached
-            try!(os.write_raw_varint32(::protobuf::rt::vec_packed_varint_data_size(self.value_integer.as_slice())));
+            try!(os.write_raw_varint32(::protobuf::rt::vec_packed_varint_data_size(self.value_integer.as_ref())));
             for v in self.value_integer.iter() {
                 try!(os.write_int64_no_tag(*v));
             };
@@ -1042,8 +1043,8 @@ impl HekaMessage {
 
     pub fn get_uuid<'a>(&'a self) -> &'a [u8] {
         match self.uuid.as_ref() {
-            Some(v) => v.as_slice(),
-            None => [].as_slice(),
+            Some(v) => v.as_ref(),
+            None => [].as_ref(),
         }
     }
 
@@ -1097,7 +1098,7 @@ impl HekaMessage {
 
     pub fn get_field_type<'a>(&'a self) -> &'a str {
         match self.field_type.as_ref() {
-            Some(v) => v.as_slice(),
+            Some(v) => v.as_ref(),
             None => "",
         }
     }
@@ -1133,7 +1134,7 @@ impl HekaMessage {
 
     pub fn get_logger<'a>(&'a self) -> &'a str {
         match self.logger.as_ref() {
-            Some(v) => v.as_slice(),
+            Some(v) => v.as_ref(),
             None => "",
         }
     }
@@ -1188,7 +1189,7 @@ impl HekaMessage {
 
     pub fn get_payload<'a>(&'a self) -> &'a str {
         match self.payload.as_ref() {
-            Some(v) => v.as_slice(),
+            Some(v) => v.as_ref(),
             None => "",
         }
     }
@@ -1224,7 +1225,7 @@ impl HekaMessage {
 
     pub fn get_env_version<'a>(&'a self) -> &'a str {
         match self.env_version.as_ref() {
-            Some(v) => v.as_slice(),
+            Some(v) => v.as_ref(),
             None => "",
         }
     }
@@ -1279,7 +1280,7 @@ impl HekaMessage {
 
     pub fn get_hostname<'a>(&'a self) -> &'a str {
         match self.hostname.as_ref() {
-            Some(v) => v.as_slice(),
+            Some(v) => v.as_ref(),
             None => "",
         }
     }
@@ -1306,7 +1307,7 @@ impl HekaMessage {
     }
 
     pub fn get_fields<'a>(&'a self) -> &'a [Field] {
-        self.fields.as_slice()
+        self.fields.as_ref()
     }
 }
 
@@ -1404,31 +1405,31 @@ impl ::protobuf::Message for HekaMessage {
     fn compute_size(&self) -> u32 {
         let mut my_size = 0;
         for value in self.uuid.iter() {
-            my_size += ::protobuf::rt::bytes_size(1, value.as_slice());
+            my_size += ::protobuf::rt::bytes_size(1, value.as_ref());
         };
         for value in self.timestamp.iter() {
             my_size += ::protobuf::rt::value_size(2, *value, ::protobuf::wire_format::WireTypeVarint);
         };
         for value in self.field_type.iter() {
-            my_size += ::protobuf::rt::string_size(3, value.as_slice());
+            my_size += ::protobuf::rt::string_size(3, value.as_ref());
         };
         for value in self.logger.iter() {
-            my_size += ::protobuf::rt::string_size(4, value.as_slice());
+            my_size += ::protobuf::rt::string_size(4, value.as_ref());
         };
         for value in self.severity.iter() {
             my_size += ::protobuf::rt::value_size(5, *value, ::protobuf::wire_format::WireTypeVarint);
         };
         for value in self.payload.iter() {
-            my_size += ::protobuf::rt::string_size(6, value.as_slice());
+            my_size += ::protobuf::rt::string_size(6, value.as_ref());
         };
         for value in self.env_version.iter() {
-            my_size += ::protobuf::rt::string_size(7, value.as_slice());
+            my_size += ::protobuf::rt::string_size(7, value.as_ref());
         };
         for value in self.pid.iter() {
             my_size += ::protobuf::rt::value_size(8, *value, ::protobuf::wire_format::WireTypeVarint);
         };
         for value in self.hostname.iter() {
-            my_size += ::protobuf::rt::string_size(9, value.as_slice());
+            my_size += ::protobuf::rt::string_size(9, value.as_ref());
         };
         for value in self.fields.iter() {
             let len = value.compute_size();
@@ -1441,31 +1442,31 @@ impl ::protobuf::Message for HekaMessage {
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream) -> ::protobuf::ProtobufResult<()> {
         if let Some(v) = self.uuid.as_ref() {
-            try!(os.write_bytes(1, v.as_slice()));
+            try!(os.write_bytes(1, v.as_ref()));
         };
         if let Some(v) = self.timestamp {
             try!(os.write_int64(2, v));
         };
         if let Some(v) = self.field_type.as_ref() {
-            try!(os.write_string(3, v.as_slice()));
+            try!(os.write_string(3, v.as_ref()));
         };
         if let Some(v) = self.logger.as_ref() {
-            try!(os.write_string(4, v.as_slice()));
+            try!(os.write_string(4, v.as_ref()));
         };
         if let Some(v) = self.severity {
             try!(os.write_int32(5, v));
         };
         if let Some(v) = self.payload.as_ref() {
-            try!(os.write_string(6, v.as_slice()));
+            try!(os.write_string(6, v.as_ref()));
         };
         if let Some(v) = self.env_version.as_ref() {
-            try!(os.write_string(7, v.as_slice()));
+            try!(os.write_string(7, v.as_ref()));
         };
         if let Some(v) = self.pid {
             try!(os.write_int32(8, v));
         };
         if let Some(v) = self.hostname.as_ref() {
-            try!(os.write_string(9, v.as_slice()));
+            try!(os.write_string(9, v.as_ref()));
         };
         for v in self.fields.iter() {
             try!(os.write_tag(10, ::protobuf::wire_format::WireTypeLengthDelimited));
